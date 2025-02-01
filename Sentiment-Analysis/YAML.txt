@@ -1,0 +1,412 @@
+apiVersion: serverless.kyma-project.io/v1alpha2
+kind: Function
+metadata:
+  creationTimestamp: '2024-07-29T12:59:01Z'
+  generation: 34
+  labels:
+    app.kubernetes.io/name: sentiment-analysis
+  managedFields:
+    - apiVersion: serverless.kyma-project.io/v1alpha2
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:metadata:
+          f:labels:
+            .: {}
+            f:app.kubernetes.io/name: {}
+        f:spec:
+          .: {}
+          f:env: {}
+          f:replicas: {}
+          f:resourceConfiguration:
+            .: {}
+            f:function:
+              .: {}
+              f:profile: {}
+          f:runtime: {}
+          f:scaleConfig:
+            .: {}
+            f:maxReplicas: {}
+            f:minReplicas: {}
+          f:source:
+            .: {}
+            f:inline:
+              .: {}
+              f:dependencies: {}
+              f:source: {}
+      manager: Mozilla
+      operation: Update
+      time: '2024-08-06T14:15:33Z'
+    - apiVersion: serverless.kyma-project.io/v1alpha2
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:status:
+          .: {}
+          f:buildResourceProfile: {}
+          f:conditions: {}
+          f:functionResourceProfile: {}
+          f:podSelector: {}
+          f:replicas: {}
+          f:runtime: {}
+          f:runtimeImage: {}
+      manager: manager
+      operation: Update
+      subresource: status
+      time: '2024-08-07T08:43:36Z'
+  name: sentiment-analysis
+  namespace: default
+  resourceVersion: '12172847'
+  uid: 56c3c323-d0e2-4796-8cf8-780c98582f3d
+spec:
+  env:
+    - name: SLACK_URL
+      valueFrom:
+        secretKeyRef:
+          key: slackUrl
+          name: sentiment-analysis
+    - name: BASE_SITE
+      valueFrom:
+        secretKeyRef:
+          key: baseSite
+          name: sentiment-analysis
+    - name: GATEWAY_URL_OCC
+      valueFrom:
+        secretKeyRef:
+          key: gateway_url_occ
+          name: sentiment-analysis
+    - name: GATEWAY_URL_REVIEW
+      valueFrom:
+        secretKeyRef:
+          key: gateway_url_review
+          name: sentiment-analysis
+    - name: GATEWAY_URL_C4C
+      valueFrom:
+        secretKeyRef:
+          key: gateway_url_c4c
+          name: sentiment-analysis
+    - name: SVC_URL_TEXT_ANALYSIS
+      valueFrom:
+        secretKeyRef:
+          key: svcUrlTextAnalysis
+          name: sentiment-analysis
+    - name: SVC_URL_CONTENT_MODERATION
+      valueFrom:
+        secretKeyRef:
+          key: svcUrlContentModeration
+          name: sentiment-analysis
+    - name: C4C_UPDATE_FLAG
+      valueFrom:
+        secretKeyRef:
+          key: c4cUpdateFlag
+          name: sentiment-analysis
+  replicas: 1
+  resourceConfiguration:
+    function:
+      profile: XS
+  runtime: nodejs20
+  scaleConfig:
+    maxReplicas: 1
+    minReplicas: 1
+  source:
+    inline:
+      dependencies: "\r\n{\r\n    \"name\": \"sentiment-analysis\",\r\n    \"version\": \"1.0.0\",\r\n    \"dependencies\": {\r\n      \"axios\": \"^0.18.0\",\r\n      \"@slack/client\": \"^4.3.1\"\r\n    }\r\n}\r\n"
+      source: >
+        const axios = require("axios");
+
+        const traceHeaders = ['x-request-id', 'x-b3-traceid', 'x-b3-spanid',
+        'x-b3-parentspanid', 'x-b3-sampled', 'x-b3-Flags', 'x-ot-span-context'];
+
+
+        const gatewayURL = process.env.GATEWAY_URL_OCC;
+
+        const baseSite = process.env.BASE_SITE;
+
+
+        const reviewGatewayURL = process.env.GATEWAY_URL_REVIEW;
+
+        const reviewODataPath = "/CustomerReviews";
+
+        const reviewServiceURL = reviewGatewayURL + reviewODataPath;
+
+
+        const c4cgatewayurl = process.env['GATEWAY_URL_C4C'];
+
+        const customerODataPath = "/IndividualCustomerCollection";
+
+        const ticketODataPath = "/ServiceRequestCollection";
+
+
+        module.exports = {
+            main: async function (event, context) {
+                var rightnow = new Date().toISOString();
+                console.log(`************ Current time: ${rightnow}`);
+
+                console.log('************ Event Data:');
+                console.log(event.data);
+
+                console.log('********** URLs:');
+                console.log(reviewGatewayURL);
+
+                var traceCtxHeaders = extractTraceHeaders(event.extensions.request.headers);
+
+                var reviewCode = event.data.integrationKey;
+                var userId = event.data.user.uid;
+                console.log(`userId: ${userId}`);
+                var anonymous = (userId === 'anonymous');
+
+                // GET CUSTOMER INFO FROM OCC
+                let customerDetails = await getUserDetails(userId, anonymous, traceCtxHeaders);
+                console.log("customerDetails email: " + customerDetails.Email);
+                if(customerDetails.Email !== "brawlstars83112@gmail.com"){
+                    var message = "incorrect mail for review: " + customerDetails.Email;
+                    await sendToSlack(message, false);  // false for negative review
+
+                    return;
+                }
+                // Review details are provided in the event data
+                let reviewDetails = event.data;
+                var reviewHeadline = reviewDetails.headline;
+                var reviewComment = reviewDetails.comment;
+                const comment = reviewHeadline + ' ' + reviewComment;
+
+                console.log("reviewDetails: " + comment);
+
+                // DETERMINE REVIEW SENTIMENT
+                let negative = await isNegative(comment, traceCtxHeaders);
+                var rude = false;
+
+                if (negative) {
+                    console.log("Customer sentiment is negative: ", comment);
+                    var message = "Negative review posted by " + customerDetails.Email + ": " + comment;
+                    await sendToSlack(message, false);  // false for negative review
+
+                    rude = await isNaughty(comment, traceCtxHeaders);
+                    if (rude) {
+                        console.log("Customer comment is rude: ", comment);
+                        var message = "Rude review posted by " + customerDetails.Email + ": " + comment;
+                        await sendToSlack(message, false);  // false for rude review
+                    } else {
+                        console.log("Customer comment is clean: ", comment);
+                        var message = "Clean review posted by " + customerDetails.Email + ": " + comment;
+                        await sendToSlack(message, false);  // false for clean review
+                    }
+
+                    const c4cUpdateFlag = process.env['C4C_UPDATE_FLAG'];
+                    if (c4cUpdateFlag === "true") {
+                        // Create C4C Customer
+                        let customerID = await createC4CCustomer(customerDetails, traceCtxHeaders);
+                        console.log("customerID: " + customerID);
+
+                        if (customerID !== '') {
+                            // Create C4C Ticket
+                            await createC4CTicket(customerID, customerDetails, comment, traceCtxHeaders);
+                        }
+                    }
+                } else {
+                    console.log("Customer sentiment is positive");
+                    var message = "Positive review posted by " + customerDetails.Email + ": " + comment;
+                    await sendToSlack(message, true);  // true for positive review
+
+                    rude = await isNaughty(comment, traceCtxHeaders);
+                    if (rude) {
+                        console.log("Customer comment is rude: ", comment);
+                        var message = "Rude review posted by " + customerDetails.Email + ": " + comment;
+                        await sendToSlack(message, true);  // true for positive review with rude comment
+                    } else {
+                        console.log("Customer comment is clean: ", comment);
+                        var message = "Clean review posted by " + customerDetails.Email + ": " + comment;
+                        await sendToSlack(message, true);  // true for positive review with clean comment
+                    }
+                }
+
+                // Update Review status
+                await updateReview(negative, rude, reviewDetails, traceCtxHeaders);
+
+                console.log("returning processing complete.");
+                return "processing complete";
+            }
+        };
+
+
+        async function getUserDetails(userId, isAnonymous, traceCtxHeaders) {
+            console.log(`userId: ${userId}`);
+            var firstName = "Anonymous";
+            var lastName = "Anonymous";
+            var emailAddress = "mailto:anonymous@anonymous.com";
+
+            if (!isAnonymous) {
+                var url = `${gatewayURL}/${baseSite}/users/${userId}?fields=FULL`;
+                console.log(`get user details: ${url}`);
+                try {
+                    let response = await axios.get(url, { headers: traceCtxHeaders });
+                    firstName = response.data.firstName;
+                    lastName = response.data.lastName;
+                    emailAddress = response.data.displayUid;
+                } catch (error) {
+                    console.error('Error on getUserDetails:', error.message);
+                }
+            }
+
+            var customerDetailsC4C = {
+                "FirstName": firstName,
+                "LastName": lastName,
+                "Email": emailAddress,
+                "RoleCode": "CRM000",
+                "GenderCode": "1", //0002 is Mr., 0001 is Ms.
+                "LifeCycleStatusCode": "2"
+            };
+
+            return customerDetailsC4C;
+        }
+
+
+        async function updateReview(isNegative, isRude, content,
+        traceCtxHeaders) {
+            var status = { "code": "approved" };
+            if (isNegative || isRude) {
+                content.blocked = true;
+                status = { "code": "rejected" };
+            }
+            content.approvalStatus = status;
+
+            try {
+                let response = await axios.post(`${reviewServiceURL}`, content, { headers: traceCtxHeaders });
+                console.log('Update review response:', response.data); // Log the response
+            } catch (error) {
+                console.error('Error on updateReview:', error.message);
+            }
+        }
+
+
+        async function isNegative(comment, traceCtxHeaders) {
+            var url = process.env.SVC_URL_TEXT_ANALYSIS;
+            var headers = { 'Content-Type': 'application/json' };
+            Object.assign(headers, traceCtxHeaders);
+            var requestJson = `{"text": "${comment}"}`;
+
+            try {
+                let response = await axios.post(url, requestJson, { headers: headers });
+                console.log("Sentiment response:", response.data); // Log the full response
+                return response.data.polarity < 0.1;
+            } catch (error) {
+                console.error('Error on isNegative:', error.message);
+                return false;
+            }
+        }
+
+
+        async function isNaughty(comment, traceCtxHeaders) {
+            var url = process.env.SVC_URL_CONTENT_MODERATION;
+            var headers = { 'Content-Type': 'application/json' };
+            Object.assign(headers, traceCtxHeaders);
+            var requestJson = `{"text": "${comment}"}`;
+
+            try {
+                let response = await axios.post(url, requestJson, { headers: headers });
+                console.log("Content moderation response:", response.data); // Log the full response
+                return response.data.inappropriate > 0;
+            } catch (error) {
+                console.error('Error on isNaughty:', error.message);
+                return false;
+            }
+        }
+
+
+        async function sendToSlack(message, isPositive) {
+            var channelName = "#product-reviews";
+            if (!isPositive) {
+                channelName = "#product-reviews-neg";
+            }
+
+            var slackMessage = { text: message, channel: channelName };
+
+            try {
+                let response = await axios.post(process.env.SLACK_URL, slackMessage);
+                console.log('Slack response:', response.data); // Log the full response
+            } catch (error) {
+                console.error('Error on sendToSlack:', error.message);
+            }
+        }
+
+
+        async function createC4CCustomer(customerDetails, traceCtxHeaders) {
+            var customersUrl = c4cgatewayurl + customerODataPath;
+
+            try {
+                let response = await axios.get(customersUrl + "?$filter=Email eq '" + customerDetails.Email + "'", { headers: traceCtxHeaders });
+                if (response.data.d.results[0]) {
+                    console.log("Found existing IndividualCustomer, doing nothing");
+                    console.log(JSON.stringify(response.data.d.results[0]));
+                    var customerID = response.data.d.results[0].CustomerID;
+                    return customerID;
+                } else {
+                    console.log("Inside else, create new customer...");
+                    let response = await axios.post(customersUrl, customerDetails, { headers: traceCtxHeaders });
+                    console.log(JSON.stringify(response.data.d.results));
+                    var customerID = response.data.d.results.CustomerID;
+                    return customerID;
+                }
+            } catch (error) {
+                console.error('Error on createC4CCustomer:', error.message);
+                return '';
+            }
+        }
+
+
+        async function createC4CTicket(customerID, customerDetails, comment,
+        traceCtxHeaders) {
+            var ticketUrl = c4cgatewayurl + ticketODataPath;
+
+            var ticketDetailsC4C = {
+                "ServicePriorityCode": "2",
+                "ProcessingTypeCode": "SRRQ",
+                "Name": "Negative product review from " + customerDetails.Email,
+                "BuyerPartyID": customerID,
+                "ServiceRequestTextCollection": [
+                    {
+                        "Text": comment
+                    }
+                ]
+            };
+
+            try {
+                let response = await axios.post(ticketUrl, ticketDetailsC4C, { headers: traceCtxHeaders });
+                console.log("Ticket created:", response.data);
+            } catch (error) {
+                console.error('Error on createC4CTicket:', error.message);
+            }
+        }
+
+
+        function extractTraceHeaders(headers) {
+            var traceCtxHeaders = {};
+            traceHeaders.forEach(function(header) {
+                if (headers[header]) {
+                    traceCtxHeaders[header] = headers[header];
+                }
+            });
+            return traceCtxHeaders;
+        }
+status:
+  buildResourceProfile: slow
+  conditions:
+    - lastTransitionTime: '2024-08-07T08:43:36Z'
+      message: Minimum replicas not available for deployment sentiment-analysis-qqq8c
+      reason: MinReplicasNotAvailable
+      status: Unknown
+      type: Running
+    - lastTransitionTime: '2024-08-06T14:15:55Z'
+      message: Job sentiment-analysis-build-5srrt finished
+      reason: JobFinished
+      status: 'True'
+      type: BuildReady
+    - lastTransitionTime: '2024-08-06T14:15:33Z'
+      message: 'Updated ConfigMap: "sentiment-analysis-tzf5s"'
+      reason: ConfigMapUpdated
+      status: 'True'
+      type: ConfigurationReady
+  functionResourceProfile: XS
+  podSelector: >-
+    serverless.kyma-project.io/function-name=sentiment-analysis,serverless.kyma-project.io/managed-by=function-controller,serverless.kyma-project.io/resource=deployment,serverless.kyma-project.io/uuid=56c3c323-d0e2-4796-8cf8-780c98582f3d
+  replicas: 1
+  runtime: nodejs20
+  runtimeImage: europe-docker.pkg.dev/kyma-project/prod/function-runtime-nodejs20:1.5.1

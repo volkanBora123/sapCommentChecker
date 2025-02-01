@@ -1,0 +1,133 @@
+apiVersion: serverless.kyma-project.io/v1alpha2
+kind: Function
+metadata:
+  creationTimestamp: '2024-07-29T13:21:08Z'
+  generation: 2
+  labels:
+    app.kubernetes.io/name: text-analysis
+  managedFields:
+    - apiVersion: serverless.kyma-project.io/v1alpha2
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:metadata:
+          f:labels:
+            .: {}
+            f:app.kubernetes.io/name: {}
+        f:spec:
+          .: {}
+          f:env: {}
+          f:replicas: {}
+          f:resourceConfiguration:
+            .: {}
+            f:function:
+              .: {}
+              f:profile: {}
+          f:runtime: {}
+          f:scaleConfig:
+            .: {}
+            f:maxReplicas: {}
+            f:minReplicas: {}
+          f:source:
+            .: {}
+            f:inline:
+              .: {}
+              f:dependencies: {}
+              f:source: {}
+      manager: Mozilla
+      operation: Update
+      time: '2024-08-05T11:09:12Z'
+    - apiVersion: serverless.kyma-project.io/v1alpha2
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:status:
+          .: {}
+          f:buildResourceProfile: {}
+          f:conditions: {}
+          f:functionResourceProfile: {}
+          f:podSelector: {}
+          f:replicas: {}
+          f:runtime: {}
+          f:runtimeImage: {}
+      manager: manager
+      operation: Update
+      subresource: status
+      time: '2024-08-07T08:41:31Z'
+  name: text-analysis
+  namespace: default
+  resourceVersion: '12170210'
+  uid: 17e47778-2318-4e78-8bc5-91974405bef4
+spec:
+  env: []
+  replicas: 1
+  resourceConfiguration:
+    function:
+      profile: XS
+  runtime: python312
+  scaleConfig:
+    maxReplicas: 1
+    minReplicas: 1
+  source:
+    inline:
+      dependencies: "\r\nTextBlob==0.17.1\r\n"
+      source: >-
+        from textblob import TextBlob
+
+        #from profanity_check import predict, predict_prob
+
+        import json
+
+
+        # Return a tuple of form (polarity, subjectivity ) where polarity is a
+        float within the \n# range [-1.0, 1.0] and subjectivity is a float
+        within the range [0.0, 1.0] 
+
+        # where 0.0 is very objective and 1.0 is very subjective
+
+
+        def main(event, context):
+
+            # print(event['data']['text'])
+            print('**** Request body: ') 
+            print(event['extensions']['request'].json)
+            print('**** Event Data')
+            print (event['data'])
+            print('**** Event text')
+            print (event['data']['text'])
+            print('**** Request: ') 
+            print(event['extensions']['request'])
+            if(event['extensions']['request'].method == "POST"):
+                if (event['extensions']['request'].json):
+                    request_data = event['extensions']['request'].json
+                    if ("text" in request_data):
+                        testimonial = TextBlob(request_data["text"])
+                        return testimonial.sentiment._asdict()
+                    else:
+                        return {"message": "text value not provided"}
+                else:
+                    return {"message": "No data provided"}
+            else:
+                return {"message": "Method not allowed. Must be 'POST'"}
+status:
+  buildResourceProfile: slow
+  conditions:
+    - lastTransitionTime: '2024-08-07T08:41:31Z'
+      message: Minimum replicas not available for deployment text-analysis-wb4k9
+      reason: MinReplicasNotAvailable
+      status: Unknown
+      type: Running
+    - lastTransitionTime: '2024-07-29T13:21:43Z'
+      message: Job text-analysis-build-6mrzx finished
+      reason: JobFinished
+      status: 'True'
+      type: BuildReady
+    - lastTransitionTime: '2024-07-29T13:21:08Z'
+      message: ConfigMap text-analysis-dvfhb created
+      reason: ConfigMapCreated
+      status: 'True'
+      type: ConfigurationReady
+  functionResourceProfile: XS
+  podSelector: >-
+    serverless.kyma-project.io/function-name=text-analysis,serverless.kyma-project.io/managed-by=function-controller,serverless.kyma-project.io/resource=deployment,serverless.kyma-project.io/uuid=17e47778-2318-4e78-8bc5-91974405bef4
+  replicas: 1
+  runtime: python312
+  runtimeImage: europe-docker.pkg.dev/kyma-project/prod/function-runtime-python312:1.5.1

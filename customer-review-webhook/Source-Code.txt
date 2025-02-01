@@ -1,0 +1,27 @@
+const axios = require("axios");
+
+module.exports = {
+    main: async function (event, context) {
+        try {
+            if (!event || !event.data) {
+                throw new Error("Event data is missing.");
+            }
+            const eventType = process.env.EVENT_NAME;
+            if (!eventType) {
+                throw new Error("EVENT_NAME environment variable is missing.");
+            }
+            const eventSource = "kyma";
+            
+            // Log the event type and data before emitting
+            console.log(`Emitting event of type: ${eventType} with data: ${JSON.stringify(event.data)}`);
+            
+            const response = await event.emitCloudEvent(eventType, eventSource, event.data);
+            console.log("Event successfully sent.");
+            return "Event Sent";
+        } catch (err) {
+            console.error(`Error sending event. Type: ${process.env.EVENT_NAME || "Unknown"}`);
+            console.error(err);
+            return err;
+        }
+    }
+};

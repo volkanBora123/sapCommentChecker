@@ -1,0 +1,86 @@
+apiVersion: serverless.kyma-project.io/v1alpha2
+kind: Function
+metadata:
+  creationTimestamp: '2024-07-26T13:39:15Z'
+  generation: 6
+  managedFields:
+    - apiVersion: serverless.kyma-project.io/v1alpha2
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:spec:
+          .: {}
+          f:env: {}
+          f:replicas: {}
+          f:runtime: {}
+          f:scaleConfig:
+            .: {}
+            f:maxReplicas: {}
+            f:minReplicas: {}
+          f:source:
+            .: {}
+            f:inline:
+              .: {}
+              f:dependencies: {}
+              f:source: {}
+      manager: Mozilla
+      operation: Update
+      time: '2024-08-05T11:27:43Z'
+    - apiVersion: serverless.kyma-project.io/v1alpha2
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:status:
+          .: {}
+          f:buildResourceProfile: {}
+          f:conditions: {}
+          f:functionResourceProfile: {}
+          f:podSelector: {}
+          f:replicas: {}
+          f:runtime: {}
+          f:runtimeImage: {}
+      manager: manager
+      operation: Update
+      subresource: status
+      time: '2024-08-07T08:35:14Z'
+  name: customer-review-webhook
+  namespace: default
+  resourceVersion: '12162306'
+  uid: 32c4f6c3-340d-4b17-89b8-45a2fe70be17
+spec:
+  env:
+    - name: EVENT_NAME
+      value: sap.kyma.custom.internal.product.reviewsubmitted.v1
+  replicas: 1
+  runtime: nodejs20
+  scaleConfig:
+    maxReplicas: 1
+    minReplicas: 1
+  source:
+    inline:
+      dependencies: "\r\n{ \r\n  \"dependencies\": {\r\n    \"cloudevents\" : \"4.0.3\",\r\n    \"axios\": \"0.21.1\"\r\n  }\r\n}\r\n"
+      source: "const axios = require(\"axios\");\r\n\r\nmodule.exports = {\r\n    main: async function (event, context) {\r\n        try {\r\n            if (!event || !event.data) {\r\n                throw new Error(\"Event data is missing.\");\r\n            }\r\n            const eventType = process.env.EVENT_NAME;\r\n            if (!eventType) {\r\n                throw new Error(\"EVENT_NAME environment variable is missing.\");\r\n            }\r\n            const eventSource = \"kyma\";\r\n            \r\n            // Log the event type and data before emitting\r\n            console.log(`Emitting event of type: ${eventType} with data: ${JSON.stringify(event.data)}`);\r\n            \r\n            const response = await event.emitCloudEvent(eventType, eventSource, event.data);\r\n            console.log(\"Event successfully sent.\");\r\n            return \"Event Sent\";\r\n        } catch (err) {\r\n            console.error(`Error sending event. Type: ${process.env.EVENT_NAME || \"Unknown\"}`);\r\n            console.error(err);\r\n            return err;\r\n        }\r\n    }\r\n};\r\n"
+status:
+  buildResourceProfile: slow
+  conditions:
+    - lastTransitionTime: '2024-08-07T08:35:13Z'
+      message: >-
+        Minimum replicas not available for deployment
+        customer-review-webhook-2zjzg
+      reason: MinReplicasNotAvailable
+      status: Unknown
+      type: Running
+    - lastTransitionTime: '2024-08-05T11:28:06Z'
+      message: Job customer-review-webhook-build-jlvqj finished
+      reason: JobFinished
+      status: 'True'
+      type: BuildReady
+    - lastTransitionTime: '2024-08-05T11:27:43Z'
+      message: 'Updated ConfigMap: "customer-review-webhook-q944b"'
+      reason: ConfigMapUpdated
+      status: 'True'
+      type: ConfigurationReady
+  functionResourceProfile: XS
+  podSelector: >-
+    serverless.kyma-project.io/function-name=customer-review-webhook,serverless.kyma-project.io/managed-by=function-controller,serverless.kyma-project.io/resource=deployment,serverless.kyma-project.io/uuid=32c4f6c3-340d-4b17-89b8-45a2fe70be17
+  replicas: 1
+  runtime: nodejs20
+  runtimeImage: europe-docker.pkg.dev/kyma-project/prod/function-runtime-nodejs20:1.5.1

@@ -1,0 +1,83 @@
+apiVersion: gateway.kyma-project.io/v1beta1
+kind: APIRule
+metadata:
+  creationTimestamp: '2024-07-29T12:49:38Z'
+  finalizers:
+    - gateway.kyma-project.io/subresources
+  generation: 1
+  managedFields:
+    - apiVersion: gateway.kyma-project.io/v1beta1
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:spec:
+          .: {}
+          f:gateway: {}
+          f:host: {}
+          f:rules: {}
+          f:service:
+            .: {}
+            f:name: {}
+            f:port: {}
+      manager: Mozilla
+      operation: Update
+      time: '2024-07-29T12:49:38Z'
+    - apiVersion: gateway.kyma-project.io/v1beta1
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:metadata:
+          f:finalizers:
+            .: {}
+            v:"gateway.kyma-project.io/subresources": {}
+      manager: manager
+      operation: Update
+      time: '2024-07-29T12:49:38Z'
+    - apiVersion: gateway.kyma-project.io/v1beta1
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:status:
+          .: {}
+          f:APIRuleStatus:
+            .: {}
+            f:code: {}
+          f:accessRuleStatus:
+            .: {}
+            f:code: {}
+          f:lastProcessedTime: {}
+          f:observedGeneration: {}
+          f:virtualServiceStatus:
+            .: {}
+            f:code: {}
+      manager: manager
+      operation: Update
+      subresource: status
+      time: '2024-08-07T08:00:23Z'
+  name: sentiment-analysis-api-rule
+  namespace: default
+  resourceVersion: '12117416'
+  uid: 4416878d-a889-4ad7-a04d-81756dea6bdc
+spec:
+  gateway: kyma-system/kyma-gateway
+  host: cusrevwh-o.c-0547277.kyma.ondemand.com
+  rules:
+    - accessStrategies:
+        - config: {}
+          handler: no_auth
+      methods:
+        - POST
+        - GET
+      path: /.*
+      service:
+        name: customer-review-webhook
+        port: 80
+  service:
+    name: customer-review-webhook
+    port: 80
+status:
+  APIRuleStatus:
+    code: OK
+  accessRuleStatus:
+    code: OK
+  lastProcessedTime: '2024-08-07T08:00:23Z'
+  observedGeneration: 1
+  virtualServiceStatus:
+    code: OK
